@@ -32,9 +32,12 @@
 	},
 	"homepage": "https://github.com/nathanvale/voice-inbox-server#readme",
 	"keywords": [
-		"typescript",
-		"bun",
-		"biome"
+		"voice",
+		"transcription",
+		"obsidian",
+		"ios-shortcuts",
+		"superwhisper",
+		"bun"
 	],
 	"engines": {
 		"node": ">=22.20"
@@ -45,6 +48,7 @@
 	},
 	"sideEffects": false,
 	"scripts": {
+		"start": "bun run src/index.ts",
 		"build": "bunx bunup",
 		"check": "biome check --write .",
 		"check:publint": "publint",

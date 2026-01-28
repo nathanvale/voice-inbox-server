@@ -1,382 +1,165 @@
-# bun-typescript-starter
+# Voice Inbox Server
 
-Modern TypeScript starter template with enterprise-grade tooling.
+HTTP server that accepts voice transcriptions from iOS Shortcuts and returns formatted Obsidian note content. Designed to work with SuperWhisper and Obsidian's Advanced URI plugin.
 
-## Features
+## Why?
 
-- **Bun** - Fast all-in-one JavaScript runtime and toolkit
-- **TypeScript 5.9+** - Strict mode, ESM only
-- **Biome** - Lightning-fast linting and formatting (replaces ESLint + Prettier)
-- **Vitest** - Fast unit testing with native Bun support
-- **Changesets** - Automated versioning and changelog generation
-- **GitHub Actions** - Comprehensive CI/CD with OIDC npm publishing
-- **Conventional Commits** - Enforced via commitlint + Husky
+- **URL length limits** (~2000-8000 chars) prevent using Obsidian Advanced URI for long transcriptions
+- **Obsidian Sync** means iOS Shortcuts can't write directly to the vault filesystem
+- **Solution:** POST to this server → get formatted note → copy to clipboard → open Advanced URI with `clipboard=true`
 
-## Quick Start
+## Endpoints
 
-### Prerequisites
+### `GET /`
 
-- [Bun](https://bun.sh) installed (`curl -fsSL https://bun.sh/install | bash`)
-- [GitHub CLI](https://cli.github.com) installed and authenticated (`gh auth login`)
-- [npm account](https://www.npmjs.com) with a granular access token (see [NPM Token Setup](#npm-token-setup))
+Health check.
 
-### Option A: GitHub CLI (Recommended)
-
-Create a new repo from this template and set it up in one command:
-
-```bash
-# Create repo from template
-gh repo create myusername/my-lib --template nathanvale/bun-typescript-starter --public --clone
-
-# Run setup (interactive)
-cd my-lib
-bun run setup
+```json
+{
+  "status": "ok",
+  "service": "voice-inbox-server",
+  "timestamp": "2026-01-28T05:30:00.000Z"
+}
 ```
 
-### Option B: CLI Mode (Non-Interactive)
+### `POST /convert`
 
-For automated/scripted setups, pass all arguments via CLI flags:
+Convert transcription text to Obsidian note format.
 
-```bash
-# Create repo from template
-gh repo create myusername/my-lib --template nathanvale/bun-typescript-starter --public --clone
-cd my-lib
+**Request:**
 
-# Run setup with all arguments (no prompts)
-bun run setup -- \
-  --name "@myusername/my-lib" \
-  --description "My awesome library" \
-  --author "Your Name" \
-  --yes
+```json
+{
+  "text": "Your transcription text here...",
+  "source": "superwhisper"
+}
 ```
 
-### Option C: degit
+- `text` (required): The transcription content
+- `source` (optional): Source identifier, defaults to "superwhisper"
 
-```bash
-npx degit nathanvale/bun-typescript-starter my-lib
-cd my-lib
-bun run setup
+**Response:**
+
+```json
+{
+  "success": true,
+  "noteContent": "---\ntype: transcription\ncreated: 2026-01-28\nsource: superwhisper\ntemplate_version: 1\nareas: []\nprojects: []\nsummary: \"\"\n---\n\nYour transcription text here...\n",
+  "filename": "🎤 2026-01-28 2-51pm"
+}
 ```
 
-## Setup Script
-
-The setup script configures your project and optionally creates the GitHub repository with all settings pre-configured.
-
-### Interactive Mode
+## Local Development
 
 ```bash
-bun run setup
+# Install dependencies
+bun install
+
+# Start development server (with hot reload)
+bun dev
+
+# Run tests
+bun test
+
+# Start production server
+bun start
 ```
 
-Prompts for:
-- Package name (e.g., `@myusername/my-lib` or `my-lib`)
-- Repository name
-- GitHub username/org
-- Project description
-- Author name
-
-### CLI Mode
+Test locally:
 
 ```bash
-bun run setup -- [options]
+curl http://localhost:3000/
+
+curl -X POST http://localhost:3000/convert \
+  -H "Content-Type: application/json" \
+  -d '{"text": "This is a test transcription from SuperWhisper."}'
 ```
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--name` | `-n` | Package name (e.g., `@myusername/my-lib`) |
-| `--repo` | `-r` | Repository name (defaults to package name) |
-| `--user` | `-u` | GitHub username/org (auto-detected from `gh`) |
-| `--description` | `-d` | Project description |
-| `--author` | `-a` | Author name |
-| `--yes` | `-y` | Skip confirmation prompts (auto-yes) |
-| `--no-github` | | Skip GitHub repo creation/configuration |
-| `--help` | `-h` | Show help |
+## Deploy to Railway
 
-### What Setup Does
+1. **Push to GitHub** (done via template setup)
 
-1. **Configures files** - Replaces placeholders in `package.json` and `.changeset/config.json`
-2. **Installs dependencies** - Runs `bun install`
-3. **Creates initial commit** - Commits all configured files
-4. **Creates GitHub repo** (if it doesn't exist) - Uses `gh repo create`
-5. **Configures GitHub settings**:
-   - Enables workflow permissions for PR creation
-   - Sets squash-only merging
-   - Enables auto-delete branches
-   - Enables auto-merge
-   - Configures branch protection rules
+2. **Connect Railway:**
+   - Go to [railway.app](https://railway.app) → New Project
+   - Select "Deploy from GitHub repo"
+   - Select `nathanvale/voice-inbox-server`
 
-## Complete Setup Guide
+3. **Railway auto-detects Bun** and runs `bun start`
 
-This guide walks through the full process of creating a new package and publishing it to npm.
+4. **Generate domain:**
+   - Settings → Networking → Generate Domain
+   - Note URL: `https://voice-inbox-server-production.up.railway.app`
 
-### Step 1: Create Repository
+Every push to `main` triggers automatic redeploy.
 
-```bash
-# Create and clone from template
-gh repo create myusername/my-lib --template nathanvale/bun-typescript-starter --public --clone
-cd my-lib
-```
+## iOS Shortcut Setup
 
-### Step 2: Run Setup
+Create a shortcut with these steps:
 
-```bash
-# Interactive mode
-bun run setup
+### Step 1: Get Transcription
 
-# Or non-interactive mode
-bun run setup -- \
-  --name "@myusername/my-lib" \
-  --description "My awesome library" \
-  --author "Your Name" \
-  --yes
-```
+1. **Get Clipboard** - Gets the transcription from SuperWhisper
 
-### Step 3: Configure NPM Token
+### Step 2: POST to Server
 
-Before publishing, you need to add your npm token to GitHub secrets.
+2. **Get Contents of URL**
+   - URL: `https://your-server.railway.app/convert`
+   - Method: POST
+   - Headers: `Content-Type: application/json`
+   - Request Body: JSON
+     - `text`: Clipboard
+     - `source`: `superwhisper`
 
-#### Create npm Granular Access Token
+### Step 3: Copy Note Content
 
-1. Go to [npmjs.com](https://www.npmjs.com) → Access Tokens → Generate New Token → **Granular Access Token**
+3. **Get Dictionary Value** - Key: `noteContent`
+4. **Copy to Clipboard** - Copy the note content
 
-2. Configure the token:
-   - **Token name:** `github-actions-publish` (or any name)
-   - **Expiration:** 90 days (maximum for granular tokens)
-   - **Packages and scopes:** Select "All packages" for new packages, or specific packages for existing ones
-   - **Permissions:** Read and write
-   - **IMPORTANT:** Check **"Bypass two-factor authentication for automation"**
+### Step 4: Get Filename
 
-   > Without "Bypass 2FA", CI/CD publishing will fail with "Access token expired or revoked"
+5. **Get Dictionary Value** (from step 2 result) - Key: `filename`
+6. **URL Encode** - Encode the filename
 
-3. Copy the token (starts with `npm_`)
+### Step 5: Open Obsidian
 
-#### Add Token to GitHub Secrets
+7. **Text** - Build URI:
+   ```
+   obsidian://adv-uri?vault=my-second-brain&filepath=00%20Inbox/[URL Encoded filename].md&clipboard=true&mode=new
+   ```
+8. **Open URLs** - Open the text from step 7
 
-```bash
-# If you have NPM_TOKEN in your environment
-echo "$NPM_TOKEN" | gh secret set NPM_TOKEN --repo myusername/my-lib
+### Result
 
-# Or set it interactively
-gh secret set NPM_TOKEN --repo myusername/my-lib
-# Paste your token when prompted
-```
+Creates `00 Inbox/🎤 2026-01-28 2-51pm.md` with:
 
-### Step 4: Create Initial Release
-
-Create a changeset describing your initial release:
-
-```bash
-# Create a feature branch
-git checkout -b feat/initial-release
-
-# Create changeset file
-mkdir -p .changeset
-cat > .changeset/initial-release.md << 'EOF'
+```markdown
 ---
-"@myusername/my-lib": minor
+type: transcription
+created: 2026-01-28
+source: superwhisper
+template_version: 1
+areas: []
+projects: []
+summary: ""
 ---
 
-Initial release
-EOF
-
-# Commit and push
-git add .changeset/initial-release.md
-git commit -m "chore: add changeset for initial release"
-git push -u origin feat/initial-release
-
-# Create PR
-gh pr create --title "chore: add changeset for initial release" --body "Initial release"
+Your transcription text here...
 ```
 
-### Step 5: Merge and Publish
+## Future: Migration to Mac Mini
 
-1. **Wait for CI checks** to pass on your PR
-2. **Merge the PR** - This triggers the changesets workflow
-3. **A "Version Packages" PR** will be automatically created
-4. **Merge the Version PR** - This triggers the publish workflow
-5. **Package is published to npm!**
+When you have an always-on Mac Mini:
 
-```bash
-# Check your package
-npm view @myusername/my-lib
-```
-
-### Step 6: Configure OIDC Trusted Publishing (Optional)
-
-After the first publish, you can enable token-free publishing via OIDC:
-
-1. Go to [npmjs.com](https://www.npmjs.com) → Your Package → Settings → Publishing Access
-2. Click "Add Trusted Publisher"
-3. Configure:
-   - **Owner:** Your GitHub username/org
-   - **Repository:** Your repo name
-   - **Workflow file:** `publish.yml`
-4. Save changes
-5. Optionally remove the `NPM_TOKEN` secret from GitHub
-
-Now future releases will publish automatically without any tokens!
-
-## NPM Token Setup
-
-### Why Granular Tokens?
-
-As of December 2024, npm has revoked all classic tokens. You must use **granular access tokens** for CI/CD publishing.
-
-### Token Requirements
-
-| Setting | Value | Why |
-|---------|-------|-----|
-| Type | Granular Access Token | Classic tokens no longer work |
-| Packages | All packages (for new) or specific | Allows publishing |
-| Permissions | Read and write | Required to publish |
-| **Bypass 2FA** | **Checked** | **Required for CI/CD** |
-
-### Common Errors
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| "Access token expired or revoked" | Token doesn't have "Bypass 2FA" | Create new token with 2FA bypass |
-| "E404 Not Found" | Token doesn't have publish permissions | Check token has read/write access |
-| "E403 Forbidden" | Package scope mismatch | Ensure token covers your package scope |
-
-## What's Included
-
-### CI/CD Workflows
-
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `pr-quality.yml` | PR | Lint, Typecheck, Test with coverage |
-| `publish.yml` | Push to main | Auto-publish via Changesets |
-| `commitlint.yml` | PR | Enforce conventional commits |
-| `pr-title.yml` | PR | Validate PR title format |
-| `security.yml` | Push/Schedule | CodeQL + Trivy scanning |
-| `dependency-review.yml` | PR | Supply chain security |
-| `dependabot-auto-merge.yml` | Dependabot PR | Auto-merge patch updates |
-
-### Scripts
-
-```bash
-# Development
-bun dev              # Watch mode
-bun run build        # Build for production
-bun run clean        # Remove dist/
-
-# Quality
-bun run check        # Biome lint + format (write)
-bun run lint         # Lint only
-bun run format       # Format only
-bun run typecheck    # TypeScript type check
-bun run validate     # Full quality check (lint + types + build + test)
-
-# Testing
-bun test             # Run tests
-bun test --watch     # Watch mode
-bun run coverage     # With coverage report
-
-# Publishing
-bun run version:gen  # Create changeset interactively
-bun run release      # Publish to npm (CI handles this)
-```
-
-## Project Structure
-
-```
-├── .github/
-│   ├── workflows/        # CI/CD workflows
-│   ├── actions/          # Reusable composite actions
-│   └── scripts/          # CI helper scripts
-├── .husky/               # Git hooks
-├── .changeset/           # Changeset config
-├── src/
-│   └── index.ts          # Main entry point
-├── tests/
-│   └── index.test.ts     # Example test
-├── biome.json            # Biome config
-├── tsconfig.json         # TypeScript config
-├── bunup.config.ts       # Build config
-└── package.json
-```
+1. Run server locally: `bun start`
+2. Expose via Tailscale or Cloudflare Tunnel
+3. Update shortcut URL to Tailscale address
+4. Cancel Railway subscription
 
 ## Configuration
 
-### Biome
-
-Configured in `biome.json`:
-- Tab indentation
-- 80 character line width
-- Single quotes
-- Organize imports on save
-
-### TypeScript
-
-- Strict mode enabled
-- ESM output
-- Source maps and declarations
-
-### Changesets
-
-- GitHub changelog format
-- Public npm access
-- Provenance enabled
-
-## Branch Protection
-
-The setup script automatically configures branch protection for `main`:
-
-- Require pull request before merging
-- Require status checks to pass ("All checks passed")
-- Require linear history
-- No force pushes
-- No deletions
-
-If you need to manually configure it:
-
-1. Go to Settings → Branches → Add rule
-2. Branch name pattern: `main`
-3. Enable the settings above
-
-## Troubleshooting
-
-### Setup script hangs
-
-If running in a non-TTY environment (like some CI systems), use CLI flags:
-
-```bash
-bun run setup -- --name "my-lib" --description "desc" --author "name" --yes
-```
-
-### CI can't create PRs
-
-The setup script enables this automatically. If you need to do it manually:
-
-```bash
-gh api repos/OWNER/REPO/actions/permissions/workflow \
-  --method PUT \
-  -f default_workflow_permissions=write \
-  -F can_approve_pull_request_reviews=true
-```
-
-### Version PR checks don't run
-
-Bot-created PRs don't trigger workflows. Push an empty commit:
-
-```bash
-git fetch origin
-git checkout changeset-release/main
-git commit --allow-empty -m "chore: trigger CI"
-git push
-```
-
-### npm publish fails with 404
-
-1. Ensure your npm token has "Bypass 2FA" checked
-2. Ensure token has "Read and write" permissions
-3. Ensure token covers "All packages" (for new packages)
+| Env Variable | Default | Description |
+|--------------|---------|-------------|
+| `PORT` | `3000` | Server port |
 
 ## License
 
 MIT
-
----
-
-Built with [bun-typescript-starter](https://github.com/nathanvale/bun-typescript-starter)
