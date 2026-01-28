@@ -8,21 +8,7 @@
 	},
 	"license": "MIT",
 	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		},
-		"./package.json": "./package.json"
-	},
-	"files": [
-		"dist/**",
-		"README.md",
-		"LICENSE",
-		"CHANGELOG.md"
-	],
+	"main": "./src/index.ts",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/nathanvale/voice-inbox-server.git"
@@ -49,7 +35,7 @@
 	"sideEffects": false,
 	"scripts": {
 		"start": "bun run src/index.ts",
-		"build": "bunx bunup",
+		"build": "echo 'No build step needed for Bun server'",
 		"check": "biome check --write .",
 		"check:publint": "publint",
 		"check:types": "attw --pack",
@@ -79,7 +65,7 @@
 		"test:coverage": "bun test --coverage",
 		"test:watch": "bun test --watch",
 		"typecheck": "tsc -p tsconfig.eslint.json --noEmit",
-		"validate": "bun run lint && bun run typecheck && bun run build && TF_BUILD=true bun run test",
+		"validate": "bun run lint && bun run typecheck && TF_BUILD=true bun run test",
 		"version:gen": "changeset",
 		"version:pre": "changeset version",
 		"watch:types": "tsc -p tsconfig.eslint.json --noEmit --watch"
@@ -94,7 +80,6 @@
 		"@commitlint/config-conventional": "^20.0.0",
 		"@types/node": "^24.8.1",
 		"bun-types": "^1.3.3",
-		"bunup": "^0.16.10",
 		"husky": "^9.1.7",
 		"lint-staged": "^15.2.10",
 		"publint": "^0.3.15",
